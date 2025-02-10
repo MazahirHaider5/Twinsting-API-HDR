@@ -1,16 +1,25 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export enum UserRole {
+  Artist = "Artist",
+  User = "User",
+  Company = "Company"
+}
+
 // Interface for TypeScript typing
 export interface IUser extends Document {
   _id: string;
   googleId?: string;
   email: string;
-  name: string;
+  fullname: string;
+  username: string;
   phone?: string;
   password?: string;
+  description?: string;
+  location?: string;
   photo?: string;
   stripe_customer_id: string | null;
-  user_type: string;
+  role: UserRole;
   otp?: string | null;
   otp_expiry?: Date | null;
   is_verified: boolean;
@@ -33,7 +42,11 @@ const UserSchema: Schema = new Schema<IUser>({
     required: true,
     unique: true
   },
-  name: {
+  fullname: {
+    type: String,
+    required: false
+  },
+  username: {
     type: String,
     required: false
   },
@@ -41,6 +54,7 @@ const UserSchema: Schema = new Schema<IUser>({
     type: String,
     required: false
   },
+
   password: {
     type: String,
     default: ""
@@ -52,7 +66,16 @@ const UserSchema: Schema = new Schema<IUser>({
     type: String,
     default: null
   },
-  user_type: {
+  role: {
+    type: String,
+    enum: Object.values(UserRole),
+    required: false
+  },
+  description: {
+    type: String,
+    required: false
+  },
+  location: {
     type: String,
     required: false
   },

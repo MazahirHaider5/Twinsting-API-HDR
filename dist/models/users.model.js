@@ -33,7 +33,14 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.UserRole = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+var UserRole;
+(function (UserRole) {
+    UserRole["Artist"] = "Artist";
+    UserRole["User"] = "User";
+    UserRole["Company"] = "Company";
+})(UserRole || (exports.UserRole = UserRole = {}));
 // Mongoose schema
 const UserSchema = new mongoose_1.Schema({
     googleId: { type: String, unique: true, sparse: true },
@@ -42,7 +49,11 @@ const UserSchema = new mongoose_1.Schema({
         required: true,
         unique: true
     },
-    name: {
+    fullname: {
+        type: String,
+        required: false
+    },
+    username: {
         type: String,
         required: false
     },
@@ -61,7 +72,16 @@ const UserSchema = new mongoose_1.Schema({
         type: String,
         default: null
     },
-    user_type: {
+    role: {
+        type: String,
+        enum: Object.values(UserRole),
+        required: false
+    },
+    description: {
+        type: String,
+        required: false
+    },
+    location: {
         type: String,
         required: false
     },

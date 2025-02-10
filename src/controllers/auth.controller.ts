@@ -11,19 +11,16 @@ import { generateOtp } from "../utils/otp";
 import NodeCache from "node-cache";
 import jwt from "jsonwebtoken";
 
-const userCache = new NodeCache({ stdTTL: 90 });
 
 export const userSignup = async (req: Request, res: Response) => {
-  const { email, name, phone, password } = req.body;
+  const { email, fullname, phone, password } = req.body;
 
-  if (!email || !password || !name || !phone) {
+  if (!email || !password || !fullname || !phone) {
     return res
       .status(400)
       .json({ success: false, message: "Missing required fields" });
   }
-
   try {
-    // Check if the user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(409).json({
@@ -31,17 +28,15 @@ export const userSignup = async (req: Request, res: Response) => {
         message: "User with this email already exists",
       });
     }
-
-    // Hash the password
     const hashedPassword = await hashPassword(password);
 
-    // Create a new user and save to database
     const newUser = new User({
       email,
-      name,
+      fullname,
       phone,
       password: hashedPassword,
       signup_date: new Date(),
+
     });
 
     await newUser.save();
@@ -52,8 +47,9 @@ export const userSignup = async (req: Request, res: Response) => {
       user: {
         id: newUser._id,
         email: newUser.email,
-        name: newUser.name,
+        fullname: newUser.fullname,
         phone: newUser.phone,
+
       },
     });
   } catch (error) {
@@ -66,70 +62,6 @@ export const userSignup = async (req: Request, res: Response) => {
   }
 };
 
-export const verifySignupOtp = async (req: Request, res: Response) => {
-  const { email, otp } = req.body;
-
-  if (!email || !otp) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email and OTP are required" });
-  }
-
-  try {
-    const cachedUser = userCache.get(email) as {
-      email: string;
-      name: string;
-      password: string;
-      otp: string;
-      otp_expiry: Date;
-      signup_date: Date;
-    };
-
-    if (!cachedUser) {
-      return res
-        .status(404)
-        .json({ success: false, message: "OTP expired or invalid request" });
-    }
-
-    if (cachedUser.otp !== otp) {
-      return res.status(400).json({ success: false, message: "Incorrect OTP" });
-    }
-
-    if (new Date() > new Date(cachedUser.otp_expiry)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP has expired" });
-    }
-
-    const newUser = new User({
-      email: cachedUser.email,
-      name: cachedUser.name,
-      password: cachedUser.password,
-      user_type: "",
-      is_verified: true,
-      signup_date: new Date(),
-    });
-
-    if (!cachedUser.signup_date) {
-      cachedUser.signup_date = new Date();
-    }
-
-    await newUser.save();
-    userCache.del(email);
-
-    return res.status(200).json({
-      success: true,
-      message: "OTP verified successfully. You can now sign in.",
-    });
-  } catch (error) {
-    console.error("Error verifying OTP:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-};
-
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -138,7 +70,7 @@ export const login = async (req: Request, res: Response) => {
       .json({ success: false, message: "Email and password are required" });
   }
   try {
-    const user = await User.findOne({ email }).select("email password is_two_factor");
+    const user = await User.findOne({ email }).select("email password");
 
     if (!user) {
       return res
@@ -152,27 +84,8 @@ export const login = async (req: Request, res: Response) => {
         .status(401)
         .json({ success: false, message: "Incorrect password" });
     }
-
-    if (user.is_two_factor) {
-      const otp = generateOtp();
-      user.otp = otp;
-      user.otp_expiry = new Date(Date.now() + 90 * 1000); // 90 seconds expiry
-      await user.save();
-
-      const subject = "Login Verification Code";
-      const body = `Your login verification code is: ${otp}. It will expire in 90 seconds.`;
-      await sendMail(user.email, subject, body);
-
-      return res.status(200).json({
-        success: true,
-        message: "2FA verification code sent to email",
-        requires2FA: true
-      });
-    }
-
     const userPayload: IUser = user.toObject();
     delete userPayload.password;
-
     const accessToken = generateAccessToken(userPayload);
 
     res.cookie("accessToken", accessToken, {
@@ -220,7 +133,7 @@ export const requestPasswordResetOtp = async (req: Request, res: Response) => {
     (user.otp_expiry = new Date(Date.now() + 90 * 1000)), // 90 seconds expiry
       await user.save();
 
-    const subject = "Password Reset OTP";
+    const subject = "Password Reset for your Twingstring Account";
     const body = `Your OTP for password reset is: ${otp}. It will expire in 90 seconds.`;
     await sendMail(email, subject, body);
 
@@ -249,7 +162,6 @@ export const resendPasswordResetOtp = async (req: Request, res: Response) => {
         .status(400)
         .json({ success: false, message: "User not found" });
     }
-    //OTP will be sent only when the previous OTP is expired
     if (user.otp_expiry && new Date() < user.otp_expiry) {
       return res
         .status(400)
@@ -262,7 +174,7 @@ export const resendPasswordResetOtp = async (req: Request, res: Response) => {
 
     await user.save();
 
-    const subject = "Password Reset OTP";
+    const subject = "Password Reset for your Twingstring Account";
     const body = `Your new OTP for password reset is: ${otp}. It will expire in 90 seconds.`;
     await sendMail(email, subject, body);
 
@@ -291,11 +203,9 @@ export const verifyPasswordResetOtp = async (req: Request, res: Response) => {
         .status(400)
         .json({ success: false, message: "User not found" });
     }
-    //checking if otp is correct
     if (user.otp !== otp) {
       return res.status(400).json({ success: false, message: "Incorrect OTP" });
     }
-    //checking if otp is expired
     if (user.otp_expiry && new Date() > user.otp_expiry) {
       return res
         .status(400)
@@ -329,7 +239,6 @@ export const resetPassword = async (req: Request, res: Response) => {
         .status(404)
         .json({ success: false, message: "User not found" });
     }
-    //checking if user is verified or not
     if (!user.is_verified) {
       return res
         .status(400)

@@ -12,23 +12,21 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.logout = exports.resetPassword = exports.verifyPasswordResetOtp = exports.resendPasswordResetOtp = exports.requestPasswordResetOtp = exports.login = exports.verifySignupOtp = exports.userSignup = void 0;
+exports.verifyTwoFactorLogin = exports.toggleTwoFactorAuth = exports.logout = exports.resetPassword = exports.verifyPasswordResetOtp = exports.resendPasswordResetOtp = exports.requestPasswordResetOtp = exports.login = exports.userSignup = void 0;
 const bcrypt_1 = require("../utils/bcrypt");
 const jwt_1 = require("../utils/jwt");
 const users_model_1 = __importDefault(require("../models/users.model"));
 const sendMail_1 = require("../utils/sendMail");
 const otp_1 = require("../utils/otp");
-const node_cache_1 = __importDefault(require("node-cache"));
-const userCache = new node_cache_1.default({ stdTTL: 90 });
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const userSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, name, phone, password } = req.body;
-    if (!email || !password || !name || !phone) {
+    const { email, fullname, phone, password } = req.body;
+    if (!email || !password || !fullname || !phone) {
         return res
             .status(400)
             .json({ success: false, message: "Missing required fields" });
     }
     try {
-        // Check if the user already exists
         const existingUser = yield users_model_1.default.findOne({ email });
         if (existingUser) {
             return res.status(409).json({
@@ -36,12 +34,10 @@ const userSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
                 message: "User with this email already exists",
             });
         }
-        // Hash the password
         const hashedPassword = yield (0, bcrypt_1.hashPassword)(password);
-        // Create a new user and save to database
         const newUser = new users_model_1.default({
             email,
-            name,
+            fullname,
             phone,
             password: hashedPassword,
             signup_date: new Date(),
@@ -53,7 +49,7 @@ const userSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             user: {
                 id: newUser._id,
                 email: newUser.email,
-                name: newUser.name,
+                fullname: newUser.fullname,
                 phone: newUser.phone,
             },
         });
@@ -68,55 +64,6 @@ const userSignup = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.userSignup = userSignup;
-const verifySignupOtp = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, otp } = req.body;
-    if (!email || !otp) {
-        return res
-            .status(400)
-            .json({ success: false, message: "Email and OTP are required" });
-    }
-    try {
-        const cachedUser = userCache.get(email);
-        if (!cachedUser) {
-            return res
-                .status(404)
-                .json({ success: false, message: "OTP expired or invalid request" });
-        }
-        if (cachedUser.otp !== otp) {
-            return res.status(400).json({ success: false, message: "Incorrect OTP" });
-        }
-        if (new Date() > new Date(cachedUser.otp_expiry)) {
-            return res
-                .status(400)
-                .json({ success: false, message: "OTP has expired" });
-        }
-        const newUser = new users_model_1.default({
-            email: cachedUser.email,
-            name: cachedUser.name,
-            password: cachedUser.password,
-            user_type: "",
-            is_verified: true,
-            signup_date: new Date(),
-        });
-        if (!cachedUser.signup_date) {
-            cachedUser.signup_date = new Date();
-        }
-        yield newUser.save();
-        userCache.del(email);
-        return res.status(200).json({
-            success: true,
-            message: "OTP verified successfully. You can now sign in.",
-        });
-    }
-    catch (error) {
-        console.error("Error verifying OTP:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Internal server error",
-        });
-    }
-});
-exports.verifySignupOtp = verifySignupOtp;
 const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const { email, password } = req.body;
@@ -141,18 +88,11 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const userPayload = user.toObject();
         delete userPayload.password;
         const accessToken = (0, jwt_1.generateAccessToken)(userPayload);
-        const refreshToken = (0, jwt_1.generateRefreshToken)(userPayload);
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "none",
-            maxAge: 24 * 60 * 60 * 1000, // 1 day expiration
-        });
-        res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "none",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days expiration
+            maxAge: 24 * 60 * 60 * 1000,
         });
         user.last_login = new Date();
         yield user.save();
@@ -160,8 +100,6 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             success: true,
             message: "Login successful",
             user: userPayload,
-            accessToken: accessToken,
-            refreshToken: refreshToken,
         });
     }
     catch (error) {
@@ -192,7 +130,7 @@ const requestPasswordResetOtp = (req, res) => __awaiter(void 0, void 0, void 0, 
         user.otp = otp;
         (user.otp_expiry = new Date(Date.now() + 90 * 1000)), // 90 seconds expiry
             yield user.save();
-        const subject = "Password Reset OTP";
+        const subject = "Password Reset for your Twingstring Account";
         const body = `Your OTP for password reset is: ${otp}. It will expire in 90 seconds.`;
         yield (0, sendMail_1.sendMail)(email, subject, body);
         return res
@@ -221,7 +159,6 @@ const resendPasswordResetOtp = (req, res) => __awaiter(void 0, void 0, void 0, f
                 .status(400)
                 .json({ success: false, message: "User not found" });
         }
-        //OTP will be sent only when the previous OTP is expired
         if (user.otp_expiry && new Date() < user.otp_expiry) {
             return res
                 .status(400)
@@ -232,7 +169,7 @@ const resendPasswordResetOtp = (req, res) => __awaiter(void 0, void 0, void 0, f
         (user.otp_expiry = new Date(Date.now() + 90 * 1000)), // 90 seconds expiry
             (user.is_verified = false);
         yield user.save();
-        const subject = "Password Reset OTP";
+        const subject = "Password Reset for your Twingstring Account";
         const body = `Your new OTP for password reset is: ${otp}. It will expire in 90 seconds.`;
         yield (0, sendMail_1.sendMail)(email, subject, body);
         return res
@@ -261,11 +198,9 @@ const verifyPasswordResetOtp = (req, res) => __awaiter(void 0, void 0, void 0, f
                 .status(400)
                 .json({ success: false, message: "User not found" });
         }
-        //checking if otp is correct
         if (user.otp !== otp) {
             return res.status(400).json({ success: false, message: "Incorrect OTP" });
         }
-        //checking if otp is expired
         if (user.otp_expiry && new Date() > user.otp_expiry) {
             return res
                 .status(400)
@@ -299,7 +234,6 @@ const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 .status(404)
                 .json({ success: false, message: "User not found" });
         }
-        //checking if user is verified or not
         if (!user.is_verified) {
             return res
                 .status(400)
@@ -350,3 +284,97 @@ const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.logout = logout;
+const toggleTwoFactorAuth = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const token = req.cookies.accessToken ||
+            (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized, token not provided",
+            });
+        }
+        const decodedToken = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        const userId = decodedToken.id;
+        const user = yield users_model_1.default.findById(userId);
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+        user.is_two_factor = !user.is_two_factor;
+        yield user.save();
+        return res.status(200).json({
+            success: true,
+            message: `Two-factor authentication ${user.is_two_factor ? 'enabled' : 'disabled'} successfully`,
+            is_two_factor: user.is_two_factor
+        });
+    }
+    catch (error) {
+        console.error("Error toggling 2FA:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+});
+exports.toggleTwoFactorAuth = toggleTwoFactorAuth;
+const verifyTwoFactorLogin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        return res.status(400).json({
+            success: false,
+            message: "Email and verification code are required"
+        });
+    }
+    try {
+        const user = yield users_model_1.default.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+        if (user.otp !== otp) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid verification code"
+            });
+        }
+        if (user.otp_expiry && new Date() > user.otp_expiry) {
+            return res.status(400).json({
+                success: false,
+                message: "Verification code has expired"
+            });
+        }
+        user.otp = null;
+        user.otp_expiry = null;
+        user.last_login = new Date();
+        yield user.save();
+        const userPayload = user.toObject();
+        delete userPayload.password;
+        const accessToken = (0, jwt_1.generateAccessToken)(userPayload);
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "none",
+            maxAge: 24 * 60 * 60 * 1000,
+        });
+        return res.status(200).json({
+            success: true,
+            message: "Login successful",
+            user: userPayload,
+        });
+    }
+    catch (error) {
+        console.error("Error verifying 2FA:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error",
+            error: error.message,
+        });
+    }
+});
+exports.verifyTwoFactorLogin = verifyTwoFactorLogin;
