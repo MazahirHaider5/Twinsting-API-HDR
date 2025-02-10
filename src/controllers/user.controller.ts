@@ -112,9 +112,9 @@ export const updateUser = [
           message: "User not found"
         });
       }
-      const { email, name, phone } = req.body;
+      const { email, fullname, phone } = req.body;
       if (email) user.email = email;
-      if (name) user.name = name;
+      if (fullname) user.fullname = fullname;
       if (phone) user.phone = phone;
 
       if (req.file) {
