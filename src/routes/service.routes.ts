@@ -28,8 +28,8 @@ router.patch("/description/:serviceId", requireAuth, breifDiscription);
 router.patch("/media/:serviceId", requireAuth, upload.array("media", 7), serviceMedia);
 router.patch("/addReview/:serviceId", requireAuth, addReview);
 
-router.get("/getAllServices", requireAuth, getAllServices);
-router.get("/getArtistServices", requireAuth, getArtistServices);
+router.get("/getAllServices", getAllServices);
+router.get("/getArtistServices", getArtistServices);
 
 router.get("/getServiceById/:serviceId", requireAuth, getServiceById);
 
