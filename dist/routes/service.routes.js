@@ -14,8 +14,8 @@ router.patch("/pricing/:serviceId", requireAuth_1.default, services_controller_1
 router.patch("/description/:serviceId", requireAuth_1.default, services_controller_1.breifDiscription);
 router.patch("/media/:serviceId", requireAuth_1.default, upload.array("media", 7), services_controller_1.serviceMedia);
 router.patch("/addReview/:serviceId", requireAuth_1.default, services_controller_1.addReview);
-router.get("/getAllServices", requireAuth_1.default, services_controller_1.getAllServices);
-router.get("/getArtistServices", requireAuth_1.default, services_controller_1.getArtistServices);
+router.get("/getAllServices", services_controller_1.getAllServices);
+router.get("/getArtistServices", services_controller_1.getArtistServices);
 router.get("/getServiceById/:serviceId", requireAuth_1.default, services_controller_1.getServiceById);
 router.patch("/updateServiceBasicInfo/:serviceId", requireAuth_1.default, services_controller_1.updateServiceBasicInfo);
 router.patch("/updateServicePrice/:serviceId", requireAuth_1.default, services_controller_1.updateServicePricing);
