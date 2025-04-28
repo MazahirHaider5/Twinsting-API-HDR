@@ -1,0 +1,21 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const requireAuth_1 = __importDefault(require("../middlewares/requireAuth"));
+const order_controller_1 = require("../controllers/order.controller");
+const router = express_1.default.Router();
+router.post("/create", requireAuth_1.default, order_controller_1.createOrder);
+router.get("/details/:orderId", requireAuth_1.default, order_controller_1.getOrderDetails);
+router.get("/getUserOrders", requireAuth_1.default, order_controller_1.getUserOrders);
+router.patch("/status/:orderId", requireAuth_1.default, order_controller_1.updateOrderStatus);
+router.get("/all", requireAuth_1.default, order_controller_1.getAllOrders);
+router.get("/getArtistOrders", requireAuth_1.default, order_controller_1.getArtistOrders);
+router.post("/checkout/stripe/:orderId", requireAuth_1.default, order_controller_1.createStripeCheckout);
+router.post("/webhook/stripe", order_controller_1.stripeWebhook);
+router.post("/checkout/paypal/:orderId", requireAuth_1.default, order_controller_1.createPayPalCheckout);
+router.post("/capture/paypal/:orderId", requireAuth_1.default, order_controller_1.capturePayPalPayment);
+router.patch("/updateOrder/:orderId", requireAuth_1.default, order_controller_1.updateOrder);
+exports.default = router;

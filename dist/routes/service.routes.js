@@ -1,0 +1,26 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const multer_1 = __importDefault(require("../middlewares/multer"));
+const services_controller_1 = require("../controllers/services.controller");
+const requireAuth_1 = __importDefault(require("../middlewares/requireAuth"));
+const router = express_1.default.Router();
+const upload = (0, multer_1.default)(["image/jpeg", "image/png", "video/mp4"], "service_media", 5 * 1024 * 1024);
+router.post("/createService", requireAuth_1.default, services_controller_1.createService);
+router.patch("/pricing/:serviceId", requireAuth_1.default, services_controller_1.ServicePricing);
+router.patch("/description/:serviceId", requireAuth_1.default, services_controller_1.breifDiscription);
+router.patch("/media/:serviceId", requireAuth_1.default, upload.array("media", 7), services_controller_1.serviceMedia);
+router.patch("/addReview/:serviceId", requireAuth_1.default, services_controller_1.addReview);
+router.get("/getAllServices", requireAuth_1.default, services_controller_1.getAllServices);
+router.get("/getArtistServices", requireAuth_1.default, services_controller_1.getArtistServices);
+router.get("/getServiceById/:serviceId", requireAuth_1.default, services_controller_1.getServiceById);
+router.patch("/updateServiceBasicInfo/:serviceId", requireAuth_1.default, services_controller_1.updateServiceBasicInfo);
+router.patch("/updateServicePrice/:serviceId", requireAuth_1.default, services_controller_1.updateServicePricing);
+router.patch("/updateServiceDescription/:serviceId", requireAuth_1.default, services_controller_1.updateServicePricing);
+router.patch("/updateServiceMedia/:serviceId", requireAuth_1.default, upload.array("media", 7), services_controller_1.updateServiceMedia);
+router.delete("/deleteServiceById/:serviceId", requireAuth_1.default, services_controller_1.deleteServiceById);
+express_1.default.Router();
+exports.default = router;
