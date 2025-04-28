@@ -224,7 +224,7 @@ const createPayPalCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
         const paypalOrder = yield (0, paymentUtils_1.createPayPalOrder)(order.amount, 'USD', `Payment for order ${order.order_number}`);
         // Save PayPal order ID to local database or session if needed
         (0, responseHelper_1.default)(res, 200, true, "PayPal order created", {
-            orderId: paypalOrder.id,
+            // orderId: paypalOrder.id,
             amount: order.amount
         });
     }
@@ -256,13 +256,16 @@ const capturePayPalPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
         // Capture the PayPal payment
         const captureData = yield (0, paymentUtils_1.capturePayPalPayment)(paypalOrderId);
         // If payment was successful, update the order
-        if (captureData.status === 'COMPLETED') {
-            yield order_model_1.default.findByIdAndUpdate(orderId, { is_paid: true }, { new: true });
-            (0, responseHelper_1.default)(res, 200, true, "Payment completed successfully", captureData);
-        }
-        else {
-            (0, responseHelper_1.default)(res, 400, false, "Payment not completed", captureData);
-        }
+        // if (captureData.status === 'COMPLETED') {
+        //   await Order.findByIdAndUpdate(
+        //     orderId,
+        //     { is_paid: true },
+        //     { new: true }
+        //   );
+        //   sendResponse(res, 200, true, "Payment completed successfully", captureData);
+        // } else {
+        //   sendResponse(res, 400, false, "Payment not completed", captureData);
+        // }
     }
     catch (error) {
         logger_1.default.error("Error capturing PayPal payment:", error);

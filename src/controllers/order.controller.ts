@@ -286,7 +286,7 @@ export const createPayPalCheckout = async (req: Request, res: Response) => {
     // Save PayPal order ID to local database or session if needed
 
     sendResponse(res, 200, true, "PayPal order created", {
-      orderId: paypalOrder.id,
+      // orderId: paypalOrder.id,
       amount: order.amount
     });
   } catch (error) {
@@ -322,17 +322,17 @@ export const capturePayPalPayment = async (req: Request, res: Response) => {
     const captureData = await capturePayPalOrder(paypalOrderId);
     
     // If payment was successful, update the order
-    if (captureData.status === 'COMPLETED') {
-      await Order.findByIdAndUpdate(
-        orderId,
-        { is_paid: true },
-        { new: true }
-      );
+    // if (captureData.status === 'COMPLETED') {
+    //   await Order.findByIdAndUpdate(
+    //     orderId,
+    //     { is_paid: true },
+    //     { new: true }
+    //   );
       
-      sendResponse(res, 200, true, "Payment completed successfully", captureData);
-    } else {
-      sendResponse(res, 400, false, "Payment not completed", captureData);
-    }
+    //   sendResponse(res, 200, true, "Payment completed successfully", captureData);
+    // } else {
+    //   sendResponse(res, 400, false, "Payment not completed", captureData);
+    // }
   } catch (error) {
     logger.error("Error capturing PayPal payment:", error);
     sendResponse(res, 500, false, "Internal Server Error");

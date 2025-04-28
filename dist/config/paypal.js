@@ -38,7 +38,7 @@ const getPayPalAccessToken = () => __awaiter(void 0, void 0, void 0, function* (
             },
             data: 'grant_type=client_credentials'
         });
-        return response.data.access_token;
+        console.log('PayPal Access Token Response:', response.data);
     }
     catch (error) {
         console.error('Error getting PayPal access token:', error);

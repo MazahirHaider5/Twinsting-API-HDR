@@ -14,7 +14,7 @@ if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
 }
 
 // Get PayPal access token
-export const getPayPalAccessToken = async (): Promise<string> => {
+export const getPayPalAccessToken = async (): Promise<void> => {
   try {
     const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
     
@@ -28,7 +28,7 @@ export const getPayPalAccessToken = async (): Promise<string> => {
       data: 'grant_type=client_credentials'
     });
     
-    return response.data.access_token;
+    console.log('PayPal Access Token Response:', response.data);
   } catch (error) {
     console.error('Error getting PayPal access token:', error);
     throw new Error('Failed to get PayPal access token');
