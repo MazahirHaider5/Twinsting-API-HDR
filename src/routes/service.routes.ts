@@ -29,7 +29,7 @@ router.patch("/media/:serviceId", requireAuth, upload.array("media", 7), service
 router.patch("/addReview/:serviceId", requireAuth, addReview);
 
 router.get("/getAllServices", getAllServices);
-router.get("/getArtistServices", getArtistServices);
+router.get("/getArtistServices",requireAuth, getArtistServices);
 
 router.get("/getServiceById/:serviceId", requireAuth, getServiceById);
 
