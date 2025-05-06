@@ -22,7 +22,9 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
     if (!token) return sendResponse(res, 401, false, "Unauthorized");
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+    
     req.user = decoded;
+    
     next();
   } catch (error) {
     logger.error("Auth Middleware Error:", error);

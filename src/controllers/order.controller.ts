@@ -5,13 +5,14 @@ import User from "../models/user.model";
 import sendResponse from "../utils/responseHelper";
 import logger from "../config/logger";
 import stripe from "../config/stripe";
-import { 
-  createStripePaymentIntent, 
+import {
+  createStripePaymentIntent,
   createPayPalOrder,
   capturePayPalPayment as capturePayPalOrder
 } from "../utils/paymentUtils";
+import mongoose from "mongoose";
 
-type PricingType = 'starter' | 'standard' | 'advance';
+type PricingType = "starter" | "standard" | "advance";
 
 /**
  * Create a new order
@@ -23,18 +24,17 @@ export const createOrder = async (req: Request, res: Response) => {
     }
 
     const { serviceId, pricingType, deliveryDate, location } = req.body;
-    
+
     const userId = req.user.id; // This is the user making the order
 
     const service = await Service.findById(serviceId);
     if (!service) {
       return sendResponse(res, 404, false, "Service not found");
-    }    // Check if pricing exists for the selected type
-
+    } // Check if pricing exists for the selected type
 
     const artistId = service.artist_id;
 
-    const validPricingTypes: PricingType[] = ['starter', 'standard', 'advance'];
+    const validPricingTypes: PricingType[] = ["starter", "standard", "advance"];
     if (!validPricingTypes.includes(pricingType as PricingType)) {
       return sendResponse(res, 400, false, "Invalid pricing type. Must be 'starter', 'standard', or 'advance'");
     }
@@ -53,7 +53,7 @@ export const createOrder = async (req: Request, res: Response) => {
       location,
       delivery_date: new Date(deliveryDate),
       amount: pricing.price,
-      status: 'active',
+      status: "active",
       user_id: userId,
       artist_id: artistId, // Set this to the artist's ID from the service
       booking_date_time: new Date()
@@ -61,10 +61,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     await newOrder.save();
 
-    await Service.findByIdAndUpdate(
-      serviceId, 
-      { $push: { orders: newOrder._id } }
-    );
+    await Service.findByIdAndUpdate(serviceId, { $push: { orders: newOrder._id } });
 
     sendResponse(res, 201, true, "Order created successfully", newOrder);
   } catch (error) {
@@ -83,7 +80,11 @@ export const getOrderDetails = async (req: Request, res: Response) => {
     }
 
     const { orderId } = req.params;
-    const order = await Order.findById(orderId).populate('service_id');
+
+    // Populate both service and artist details
+    const order = await Order.findById(orderId)
+      .populate("service_id")
+      .populate("artist_id", "name profilePicture email location");
 
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
@@ -107,7 +108,7 @@ export const getUserOrders = async (req: Request, res: Response) => {
 
     console.log("Authenticated User ID:", req.user.id); // Log the user ID
 
-    const orders = await Order.find({ user_id: req.user.id }).populate('service_id');
+    const orders = await Order.find({ user_id: req.user.id }).populate("service_id");
 
     if (orders.length === 0) {
       return sendResponse(res, 200, true, "No orders found for this user", []);
@@ -116,7 +117,7 @@ export const getUserOrders = async (req: Request, res: Response) => {
     // Fetch user details
     const user = await User.findById(req.user.id);
 
-    const ordersWithUserDetails = orders.map(order => ({
+    const ordersWithUserDetails = orders.map((order) => ({
       ...order.toObject(),
       user: user
     }));
@@ -138,17 +139,17 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     }
 
     const { orderId } = req.params;
-    const { status } = req.body;
+    console.log("Order ID:", orderId);
+    console.log("Valid ObjectId:", mongoose.Types.ObjectId.isValid(orderId));
 
-    // Validate status
-    const validStatuses = ["active", "inactive", "on way", "completed", "cancelled"];
-    if (!validStatuses.includes(status)) {
-      return sendResponse(res, 400, false, "Invalid status value");
+    // const { status } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return sendResponse(res, 400, false, "Invalid Order ID");
     }
 
     const updatedOrder = await Order.findByIdAndUpdate(
-      orderId,
-      { status },
+      new mongoose.Types.ObjectId(orderId),
+      { status: "completed" },
       { new: true }
     );
 
@@ -173,9 +174,9 @@ export const createStripeCheckout = async (req: Request, res: Response) => {
     }
 
     const { orderId } = req.params;
-    
+
     // Get order details
-    const order = await Order.findById(orderId) as IOrder | null;
+    const order = (await Order.findById(orderId)) as IOrder | null;
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
     }
@@ -186,11 +187,9 @@ export const createStripeCheckout = async (req: Request, res: Response) => {
     }
 
     // Create a payment intent with Stripe
-    const paymentIntent = await createStripePaymentIntent(
-      order.amount,
-      'usd',
-      { orderId: order._id?.toString() || orderId }
-    );
+    const paymentIntent = await createStripePaymentIntent(order.amount, "usd", {
+      orderId: order._id?.toString() || orderId
+    });
 
     sendResponse(res, 200, true, "Stripe payment intent created", {
       clientSecret: paymentIntent.client_secret,
@@ -202,47 +201,38 @@ export const createStripeCheckout = async (req: Request, res: Response) => {
   }
 };
 
-
 export const stripeWebhook = async (req: Request, res: Response) => {
   try {
-    const signature = req.headers['stripe-signature'] as string;
+    const signature = req.headers["stripe-signature"] as string;
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
-    
+
     let event;
-    
+
     try {
       // Use the raw body for signature verification
       const rawBody = (req as any).rawBody || req.body;
-      
-      event = stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        endpointSecret
-      );
+
+      event = stripe.webhooks.constructEvent(rawBody, signature, endpointSecret);
     } catch (err) {
       logger.error(`Webhook signature verification failed: ${err}`);
       return sendResponse(res, 400, false, `Webhook signature verification failed`);
     }
 
     // Handle the event
-    if (event.type === 'payment_intent.succeeded') {
+    if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as {
         id: string;
         metadata?: {
           orderId?: string;
         };
       };
-      
+
       // Update the order
       if (paymentIntent.metadata && paymentIntent.metadata.orderId) {
         const orderId = paymentIntent.metadata.orderId;
-        
-        await Order.findByIdAndUpdate(
-          orderId,
-          { is_paid: true },
-          { new: true }
-        );
-        
+
+        await Order.findByIdAndUpdate(orderId, { is_paid: true }, { new: true });
+
         logger.info(`Payment succeeded for order ${orderId}`);
       }
     }
@@ -264,9 +254,9 @@ export const createPayPalCheckout = async (req: Request, res: Response) => {
     }
 
     const { orderId } = req.params;
-    
+
     // Get order details
-    const order = await Order.findById(orderId).populate('service_id') as IOrder | null;
+    const order = (await Order.findById(orderId).populate("service_id")) as IOrder | null;
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
     }
@@ -277,11 +267,7 @@ export const createPayPalCheckout = async (req: Request, res: Response) => {
     }
 
     // Create a PayPal order
-    const paypalOrder = await createPayPalOrder(
-      order.amount,
-      'USD',
-      `Payment for order ${order.order_number}`
-    );
+    const paypalOrder = await createPayPalOrder(order.amount, "USD", `Payment for order ${order.order_number}`);
 
     // Save PayPal order ID to local database or session if needed
 
@@ -306,9 +292,9 @@ export const capturePayPalPayment = async (req: Request, res: Response) => {
 
     const { orderId } = req.params;
     const { paypalOrderId } = req.body;
-    
+
     // Get order details
-    const order = await Order.findById(orderId) as IOrder | null;
+    const order = (await Order.findById(orderId)) as IOrder | null;
     if (!order) {
       return sendResponse(res, 404, false, "Order not found");
     }
@@ -320,7 +306,7 @@ export const capturePayPalPayment = async (req: Request, res: Response) => {
 
     // Capture the PayPal payment
     const captureData = await capturePayPalOrder(paypalOrderId);
-    
+
     // If payment was successful, update the order
     // if (captureData.status === 'COMPLETED') {
     //   await Order.findByIdAndUpdate(
@@ -328,7 +314,7 @@ export const capturePayPalPayment = async (req: Request, res: Response) => {
     //     { is_paid: true },
     //     { new: true }
     //   );
-      
+
     //   sendResponse(res, 200, true, "Payment completed successfully", captureData);
     // } else {
     //   sendResponse(res, 400, false, "Payment not completed", captureData);
@@ -347,14 +333,14 @@ export const getAllOrders = async (req: Request, res: Response) => {
     if (!req.user) {
       return sendResponse(res, 401, false, "Unauthorized access");
     }
-    
+
     // Check if user is admin
     const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    if (!user || user.role !== "admin") {
       return sendResponse(res, 403, false, "Access denied. Admin only.");
     }
 
-    const orders = await Order.find().populate('service_id');
+    const orders = await Order.find().populate("service_id");
     sendResponse(res, 200, true, "All orders retrieved successfully", orders);
   } catch (error) {
     logger.error("Error fetching all orders:", error);
@@ -366,26 +352,29 @@ export const getAllOrders = async (req: Request, res: Response) => {
  * Get orders for a specific artist
  */
 export const getArtistOrders = async (req: Request, res: Response): Promise<void> => {
-    const artistId = req.user?.id; // This is the artist's user ID
+  const artistId = req.user?.id; // This is the artist's user ID
 
-    if (!artistId) {
-        return sendResponse(res, 401, false, "Unauthorized, user not found");
-    }
-    console.log("artisttttttttttttttttttttt id:", artistId);
-    try {
-        const orders = await Order.find({ artist_id: artistId }); // Fetch orders for the logged-in artist
-        res.status(200).json({
-            success: true,
-            message: "Orders retrieved successfully",
-            orders,
-        });
-    } catch (error) {
-        console.error("Error retrieving artist orders:", error);
-        res.status(500).json({
-            success: false,
-            message: "Server error", error
-        });
-    }
+  if (!artistId) {
+    return sendResponse(res, 401, false, "Unauthorized, user not found");
+  }
+  console.log("artisttttttttttttttttttttt id:", artistId);
+  try {
+    const orders = await Order.find({ artist_id: artistId })
+      .populate("user_id", "name email username profilePicture phoneNumber")
+      .exec();
+    res.status(200).json({
+      success: true,
+      message: "Orders retrieved successfully",
+      orders
+    });
+  } catch (error) {
+    console.error("Error retrieving artist orders:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error
+    });
+  }
 };
 
 /**
@@ -413,7 +402,7 @@ export const updateOrder = async (req: Request, res: Response) => {
         return sendResponse(res, 404, false, "Service not found");
       }
 
-      const validPricingTypes: PricingType[] = ['starter', 'standard', 'advance'];
+      const validPricingTypes: PricingType[] = ["starter", "standard", "advance"];
       if (!validPricingTypes.includes(pricingType as PricingType)) {
         return sendResponse(res, 400, false, "Invalid pricing type. Must be 'starter', 'standard', or 'advance'");
       }

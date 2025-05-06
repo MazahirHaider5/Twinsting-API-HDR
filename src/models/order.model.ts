@@ -22,7 +22,7 @@ const OrderSchema: Schema<IOrder> = new Schema(
     order_number: { type: String, unique: true },
     service_id: { type: Schema.Types.ObjectId, ref: "Service", required: true },
     order_title: { type: String, required: true },
-    location: { type: String, required: true },
+    location: { type: String, required: false },
     delivery_date: { type: Date, required: true },
     status: {
       type: String,
@@ -33,7 +33,7 @@ const OrderSchema: Schema<IOrder> = new Schema(
     is_paid: { type: Boolean, default: false },
     remaining_time: { type: String },
     user_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    artist_id: { type: Schema.Types.ObjectId, ref: "Artists", required: true },
+    artist_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
     booking_date_time: { type: Date, default: Date.now }
   },
   { timestamps: true }
