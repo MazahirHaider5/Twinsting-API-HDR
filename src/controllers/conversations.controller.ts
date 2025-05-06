@@ -9,17 +9,12 @@ export const createNewOrGetExistingConversation = async (req: Request, res: Resp
   try {
     const { senderId, receiverId } = req.body;
 
-    // if (!req.user) {
-    //   sendResponse(res, 401, false, "Unauthorized access");
-    //   return;
-    // }
-
     if (!senderId || !receiverId) {
       sendResponse(res, 400, false, "senderId and receiverId are required");
       return;
     }
 
-    let conversation: IConversation | null = await Conversation.findOne({
+    let conversation = await Conversation.findOne({
       participants: { $all: [senderId, receiverId] }
     });
 
@@ -28,7 +23,24 @@ export const createNewOrGetExistingConversation = async (req: Request, res: Resp
       await conversation.save();
     }
 
-    sendResponse(res, 200, true, "Conversation retrieved or created successfully", conversation);
+    // Populate participant details
+    await conversation.populate({
+      path: "participants",
+      select: "-password -otp -otpExpiry -documents" // exclude sensitive fields
+    });
+
+    // Extract sender and receiver details explicitly
+    const participants = conversation.participants as any[];
+    const sender = participants.find((p) => p._id.toString() === senderId);
+    const receiver = participants.find((p) => p._id.toString() === receiverId);
+
+    sendResponse(res, 200, true, "Conversation retrieved or created successfully", {
+      _id: conversation._id,
+      sender,
+      receiver,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
   } catch (error) {
     logger.error("Error creating or fetching conversation:", error);
     sendResponse(res, 500, false, "Internal Server Error");
@@ -117,6 +129,38 @@ export const getAllConversationsForAUser = async (req: Request, res: Response): 
     });
   } catch (error) {
     logger.error("Error fetching conversations:", error);
+    sendResponse(res, 500, false, "Internal Server Error");
+  }
+};
+
+export const getConversationById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { conversationId } = req.params;
+
+    if (!conversationId) {
+      sendResponse(res, 400, false, "Conversation ID is required");
+      return;
+    }
+
+    // Fetch conversation with populated participant user details
+    const conversation = await Conversation.findById(conversationId).populate({
+      path: "participants",
+      select: "_id name email username profilePicture role"
+    });
+
+    if (!conversation) {
+      sendResponse(res, 404, false, "Conversation not found");
+      return;
+    }
+
+    sendResponse(res, 200, true, "Conversation fetched successfully", {
+      _id: conversation._id,
+      participants: conversation.participants,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+  } catch (error) {
+    logger.error("Error fetching conversation by ID:", error);
     sendResponse(res, 500, false, "Internal Server Error");
   }
 };
