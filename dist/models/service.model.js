@@ -38,7 +38,8 @@ const PricingSchema = new mongoose_1.Schema({
     name: { type: String, required: true },
     description: { type: String, required: true },
     price: { type: Number, required: true },
-});
+    deliveryTime: { type: Number, required: true },
+}, { _id: false });
 const MediaSchema = new mongoose_1.Schema({
     photos: { type: [String], default: [] },
     videos: { type: [String], default: [] },
