@@ -5,6 +5,7 @@ interface IPricing {
   name: string;
   description: string;
   price: number;
+  deliveryTime: number;
 }
 
 // Interface for Media
@@ -45,7 +46,9 @@ const PricingSchema = new Schema<IPricing>({
   name: { type: String, required: true },
   description: { type: String, required: true },
   price: { type: Number, required: true },
-});
+  deliveryTime: { type: Number, required: true },
+  
+},{ _id: false });
 
 const MediaSchema = new Schema<IMedia>({
   photos: { type: [String], default: [] },

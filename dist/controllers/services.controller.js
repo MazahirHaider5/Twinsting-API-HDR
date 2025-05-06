@@ -48,15 +48,25 @@ const ServicePricing = (req, res) => __awaiter(void 0, void 0, void 0, function*
         }
         const { serviceId } = req.params;
         const { starter, standard, advance } = req.body;
-        const updatedService = yield service_model_1.default.findByIdAndUpdate(serviceId, { pricing: { starter, standard, advance } }, { new: true });
+        // Validate required fields in each pricing tier
+        const requiredFields = ["name", "description", "price", "deliveryTime"];
+        const pricingTiers = { starter, standard, advance };
+        for (const [tier, data] of Object.entries(pricingTiers)) {
+            for (const field of requiredFields) {
+                if (!data || data[field] === undefined) {
+                    return (0, responseHelper_1.default)(res, 400, false, `${tier} package is missing required field: ${field}`);
+                }
+            }
+        }
+        const updatedService = yield service_model_1.default.findByIdAndUpdate(serviceId, { pricing: { starter, standard, advance } }, { new: true, runValidators: true });
         if (!updatedService) {
             return (0, responseHelper_1.default)(res, 404, false, "Service not found");
         }
-        (0, responseHelper_1.default)(res, 200, true, "Pricing updated successfully", updatedService);
+        return (0, responseHelper_1.default)(res, 200, true, "Pricing updated successfully", updatedService);
     }
     catch (error) {
         logger_1.default.error("Error updating pricing:", error);
-        (0, responseHelper_1.default)(res, 500, false, "Internal Server Error");
+        return (0, responseHelper_1.default)(res, 500, false, "Internal Server Error");
     }
 });
 exports.ServicePricing = ServicePricing;
@@ -181,11 +191,12 @@ exports.getArtistServices = getArtistServices;
 const getServiceById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { serviceId } = req.params;
-        const service = yield service_model_1.default.findById(serviceId);
+        const service = yield service_model_1.default.findById(serviceId).populate("artist_id", "name email profilePicture username location profile_description");
         if (!service) {
             return (0, responseHelper_1.default)(res, 404, false, "Service not found");
         }
-        (0, responseHelper_1.default)(res, 200, true, "Service details retrieved successfully", service);
+        console.log("Populated Service:", service);
+        (0, responseHelper_1.default)(res, 200, true, "Service details retrieved successfullyyyyyyyyyyy", service);
     }
     catch (error) {
         logger_1.default.error("Error retrieving service details : ", error);

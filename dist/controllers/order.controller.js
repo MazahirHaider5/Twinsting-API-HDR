@@ -20,6 +20,7 @@ const responseHelper_1 = __importDefault(require("../utils/responseHelper"));
 const logger_1 = __importDefault(require("../config/logger"));
 const stripe_1 = __importDefault(require("../config/stripe"));
 const paymentUtils_1 = require("../utils/paymentUtils");
+const mongoose_1 = __importDefault(require("mongoose"));
 /**
  * Create a new order
  */
@@ -35,7 +36,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             return (0, responseHelper_1.default)(res, 404, false, "Service not found");
         } // Check if pricing exists for the selected type
         const artistId = service.artist_id;
-        const validPricingTypes = ['starter', 'standard', 'advance'];
+        const validPricingTypes = ["starter", "standard", "advance"];
         if (!validPricingTypes.includes(pricingType)) {
             return (0, responseHelper_1.default)(res, 400, false, "Invalid pricing type. Must be 'starter', 'standard', or 'advance'");
         }
@@ -51,7 +52,7 @@ const createOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             location,
             delivery_date: new Date(deliveryDate),
             amount: pricing.price,
-            status: 'active',
+            status: "active",
             user_id: userId,
             artist_id: artistId, // Set this to the artist's ID from the service
             booking_date_time: new Date()
@@ -75,7 +76,10 @@ const getOrderDetails = (req, res) => __awaiter(void 0, void 0, void 0, function
             return (0, responseHelper_1.default)(res, 401, false, "Unauthorized access");
         }
         const { orderId } = req.params;
-        const order = yield order_model_1.default.findById(orderId).populate('service_id');
+        // Populate both service and artist details
+        const order = yield order_model_1.default.findById(orderId)
+            .populate("service_id")
+            .populate("artist_id", "name profilePicture email location");
         if (!order) {
             return (0, responseHelper_1.default)(res, 404, false, "Order not found");
         }
@@ -96,13 +100,13 @@ const getUserOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             return (0, responseHelper_1.default)(res, 401, false, "Unauthorized access");
         }
         console.log("Authenticated User ID:", req.user.id); // Log the user ID
-        const orders = yield order_model_1.default.find({ user_id: req.user.id }).populate('service_id');
+        const orders = yield order_model_1.default.find({ user_id: req.user.id }).populate("service_id");
         if (orders.length === 0) {
             return (0, responseHelper_1.default)(res, 200, true, "No orders found for this user", []);
         }
         // Fetch user details
         const user = yield user_model_1.default.findById(req.user.id);
-        const ordersWithUserDetails = orders.map(order => (Object.assign(Object.assign({}, order.toObject()), { user: user })));
+        const ordersWithUserDetails = orders.map((order) => (Object.assign(Object.assign({}, order.toObject()), { user: user })));
         (0, responseHelper_1.default)(res, 200, true, "User orders retrieved successfully", ordersWithUserDetails);
     }
     catch (error) {
@@ -120,13 +124,13 @@ const updateOrderStatus = (req, res) => __awaiter(void 0, void 0, void 0, functi
             return (0, responseHelper_1.default)(res, 401, false, "Unauthorized access");
         }
         const { orderId } = req.params;
-        const { status } = req.body;
-        // Validate status
-        const validStatuses = ["active", "inactive", "on way", "completed", "cancelled"];
-        if (!validStatuses.includes(status)) {
-            return (0, responseHelper_1.default)(res, 400, false, "Invalid status value");
+        console.log("Order ID:", orderId);
+        console.log("Valid ObjectId:", mongoose_1.default.Types.ObjectId.isValid(orderId));
+        // const { status } = req.body;
+        if (!mongoose_1.default.Types.ObjectId.isValid(orderId)) {
+            return (0, responseHelper_1.default)(res, 400, false, "Invalid Order ID");
         }
-        const updatedOrder = yield order_model_1.default.findByIdAndUpdate(orderId, { status }, { new: true });
+        const updatedOrder = yield order_model_1.default.findByIdAndUpdate(new mongoose_1.default.Types.ObjectId(orderId), { status: "completed" }, { new: true });
         if (!updatedOrder) {
             return (0, responseHelper_1.default)(res, 404, false, "Order not found");
         }
@@ -149,7 +153,7 @@ const createStripeCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
         }
         const { orderId } = req.params;
         // Get order details
-        const order = yield order_model_1.default.findById(orderId);
+        const order = (yield order_model_1.default.findById(orderId));
         if (!order) {
             return (0, responseHelper_1.default)(res, 404, false, "Order not found");
         }
@@ -158,7 +162,9 @@ const createStripeCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
             return (0, responseHelper_1.default)(res, 400, false, "Order is already paid");
         }
         // Create a payment intent with Stripe
-        const paymentIntent = yield (0, paymentUtils_1.createStripePaymentIntent)(order.amount, 'usd', { orderId: ((_a = order._id) === null || _a === void 0 ? void 0 : _a.toString()) || orderId });
+        const paymentIntent = yield (0, paymentUtils_1.createStripePaymentIntent)(order.amount, "usd", {
+            orderId: ((_a = order._id) === null || _a === void 0 ? void 0 : _a.toString()) || orderId
+        });
         (0, responseHelper_1.default)(res, 200, true, "Stripe payment intent created", {
             clientSecret: paymentIntent.client_secret,
             amount: order.amount
@@ -172,7 +178,7 @@ const createStripeCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
 exports.createStripeCheckout = createStripeCheckout;
 const stripeWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const signature = req.headers['stripe-signature'];
+        const signature = req.headers["stripe-signature"];
         const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
         let event;
         try {
@@ -185,7 +191,7 @@ const stripeWebhook = (req, res) => __awaiter(void 0, void 0, void 0, function* 
             return (0, responseHelper_1.default)(res, 400, false, `Webhook signature verification failed`);
         }
         // Handle the event
-        if (event.type === 'payment_intent.succeeded') {
+        if (event.type === "payment_intent.succeeded") {
             const paymentIntent = event.data.object;
             // Update the order
             if (paymentIntent.metadata && paymentIntent.metadata.orderId) {
@@ -212,7 +218,7 @@ const createPayPalCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
         }
         const { orderId } = req.params;
         // Get order details
-        const order = yield order_model_1.default.findById(orderId).populate('service_id');
+        const order = (yield order_model_1.default.findById(orderId).populate("service_id"));
         if (!order) {
             return (0, responseHelper_1.default)(res, 404, false, "Order not found");
         }
@@ -221,7 +227,7 @@ const createPayPalCheckout = (req, res) => __awaiter(void 0, void 0, void 0, fun
             return (0, responseHelper_1.default)(res, 400, false, "Order is already paid");
         }
         // Create a PayPal order
-        const paypalOrder = yield (0, paymentUtils_1.createPayPalOrder)(order.amount, 'USD', `Payment for order ${order.order_number}`);
+        const paypalOrder = yield (0, paymentUtils_1.createPayPalOrder)(order.amount, "USD", `Payment for order ${order.order_number}`);
         // Save PayPal order ID to local database or session if needed
         (0, responseHelper_1.default)(res, 200, true, "PayPal order created", {
             // orderId: paypalOrder.id,
@@ -245,7 +251,7 @@ const capturePayPalPayment = (req, res) => __awaiter(void 0, void 0, void 0, fun
         const { orderId } = req.params;
         const { paypalOrderId } = req.body;
         // Get order details
-        const order = yield order_model_1.default.findById(orderId);
+        const order = (yield order_model_1.default.findById(orderId));
         if (!order) {
             return (0, responseHelper_1.default)(res, 404, false, "Order not found");
         }
@@ -283,10 +289,10 @@ const getAllOrders = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         }
         // Check if user is admin
         const user = yield user_model_1.default.findById(req.user.id);
-        if (!user || user.role !== 'admin') {
+        if (!user || user.role !== "admin") {
             return (0, responseHelper_1.default)(res, 403, false, "Access denied. Admin only.");
         }
-        const orders = yield order_model_1.default.find().populate('service_id');
+        const orders = yield order_model_1.default.find().populate("service_id");
         (0, responseHelper_1.default)(res, 200, true, "All orders retrieved successfully", orders);
     }
     catch (error) {
@@ -306,18 +312,21 @@ const getArtistOrders = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
     console.log("artisttttttttttttttttttttt id:", artistId);
     try {
-        const orders = yield order_model_1.default.find({ artist_id: artistId }); // Fetch orders for the logged-in artist
+        const orders = yield order_model_1.default.find({ artist_id: artistId })
+            .populate("user_id", "name email username profilePicture phoneNumber")
+            .exec();
         res.status(200).json({
             success: true,
             message: "Orders retrieved successfully",
-            orders,
+            orders
         });
     }
     catch (error) {
         console.error("Error retrieving artist orders:", error);
         res.status(500).json({
             success: false,
-            message: "Server error", error
+            message: "Server error",
+            error
         });
     }
 });
@@ -343,7 +352,7 @@ const updateOrder = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
             if (!service) {
                 return (0, responseHelper_1.default)(res, 404, false, "Service not found");
             }
-            const validPricingTypes = ['starter', 'standard', 'advance'];
+            const validPricingTypes = ["starter", "standard", "advance"];
             if (!validPricingTypes.includes(pricingType)) {
                 return (0, responseHelper_1.default)(res, 400, false, "Invalid pricing type. Must be 'starter', 'standard', or 'advance'");
             }

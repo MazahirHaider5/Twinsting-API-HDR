@@ -48,7 +48,7 @@ const OrderSchema = new mongoose_1.Schema({
     order_number: { type: String, unique: true },
     service_id: { type: mongoose_1.Schema.Types.ObjectId, ref: "Service", required: true },
     order_title: { type: String, required: true },
-    location: { type: String, required: true },
+    location: { type: String, required: false },
     delivery_date: { type: Date, required: true },
     status: {
         type: String,
@@ -59,7 +59,7 @@ const OrderSchema = new mongoose_1.Schema({
     is_paid: { type: Boolean, default: false },
     remaining_time: { type: String },
     user_id: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
-    artist_id: { type: mongoose_1.Schema.Types.ObjectId, ref: "Artists", required: true },
+    artist_id: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true },
     booking_date_time: { type: Date, default: Date.now }
 }, { timestamps: true });
 // Auto-generate order_number (increments sequentially, min 5 digits)

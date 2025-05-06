@@ -39,20 +39,32 @@ export const ServicePricing = async (req: Request, res: Response) => {
     const { serviceId } = req.params;
     const { starter, standard, advance } = req.body;
 
+    // Validate required fields in each pricing tier
+    const requiredFields = ["name", "description", "price", "deliveryTime"];
+    const pricingTiers = { starter, standard, advance };
+
+    for (const [tier, data] of Object.entries(pricingTiers)) {
+      for (const field of requiredFields) {
+        if (!data || data[field] === undefined) {
+          return sendResponse(res, 400, false, `${tier} package is missing required field: ${field}`);
+        }
+      }
+    }
+
     const updatedService = await Service.findByIdAndUpdate(
       serviceId,
       { pricing: { starter, standard, advance } },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!updatedService) {
       return sendResponse(res, 404, false, "Service not found");
     }
 
-    sendResponse(res, 200, true, "Pricing updated successfully", updatedService);
+    return sendResponse(res, 200, true, "Pricing updated successfully", updatedService);
   } catch (error) {
     logger.error("Error updating pricing:", error);
-    sendResponse(res, 500, false, "Internal Server Error");
+    return sendResponse(res, 500, false, "Internal Server Error");
   }
 };
 
@@ -193,11 +205,12 @@ export const getArtistServices = async (req: Request, res: Response) => {
 export const getServiceById = async (req: Request, res: Response) => {
   try {
     const { serviceId } = req.params;
-    const service = await Service.findById(serviceId);
+    const service = await Service.findById(serviceId).populate("artist_id","name email profilePicture username location profile_description"); 
     if (!service) {
       return sendResponse(res, 404, false, "Service not found");
     }
-    sendResponse(res, 200, true, "Service details retrieved successfully", service);
+    console.log("Populated Service:", service);
+    sendResponse(res, 200, true, "Service details retrieved successfullyyyyyyyyyyy", service);
   } catch (error) {
     logger.error("Error retrieving service details : ", error);
     sendResponse(res, 500, false, "Internal server error");
