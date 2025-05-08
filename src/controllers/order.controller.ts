@@ -108,7 +108,7 @@ export const getUserOrders = async (req: Request, res: Response) => {
 
     console.log("Authenticated User ID:", req.user.id); // Log the user ID
 
-    const orders = await Order.find({ user_id: req.user.id }).populate("service_id");
+    const orders = await Order.find({ user_id: req.user.id }).populate("service_id").populate("artist_id", "_id email profilePicture location fullname").populate("user_id","_id email profilePicture location name" );
 
     if (orders.length === 0) {
       return sendResponse(res, 200, true, "No orders found for this user", []);
@@ -118,8 +118,7 @@ export const getUserOrders = async (req: Request, res: Response) => {
     const user = await User.findById(req.user.id);
 
     const ordersWithUserDetails = orders.map((order) => ({
-      ...order.toObject(),
-      user: user
+      ...order.toObject()
     }));
 
     sendResponse(res, 200, true, "User orders retrieved successfully", ordersWithUserDetails);
