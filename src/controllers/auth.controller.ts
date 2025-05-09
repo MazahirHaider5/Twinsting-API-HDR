@@ -37,7 +37,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     };
     
     // Send response with user details and token
-    sendResponse(res, 201, true, "User created successfully", { user: filteredUser });
+    sendResponse(res, 201, true, "User registered successfully", { user: filteredUser });
   } catch (error) {
     logger.error("Error creating user:", error);
     sendResponse(res, 500, false, "Error creating user");
@@ -86,6 +86,8 @@ export const signin = async (req: Request, res: Response): Promise<void> => {
 export const socialLogin = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, profilePicture, provider } = req.body;
+    console.log("These are credentials from frontend", email, name, profilePicture, provider);
+    
     if (!email || !provider) {
       sendResponse(res, 400, false, "Missing required fields");
       return;
